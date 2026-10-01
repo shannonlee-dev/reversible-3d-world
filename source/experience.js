@@ -10,18 +10,17 @@ function sceneLabel(text){const canvas=document.createElement('canvas');canvas.w
 const portalLabel=sceneLabel('포탈 · 통과하면 시간 반전');portalLabel.position.set(0,2.1,0);portal.add(portalLabel);
 const previousPortalPosition=v3();
 function checkPortal(){
- if(state.mode!=='basic')return;
- if(!state.entered){previousPortalPosition.copy(camera.position);return;}
  const now=camera.position,prev=previousPortalPosition;
+ let crossing=null;
  if(!state.portalArmed&&Math.abs(now.z-portalPosition.z)>1.2)state.portalArmed=true;
- if(state.playing&&state.portalArmed&&((prev.z>portalPosition.z&&now.z<=portalPosition.z)||(prev.z<portalPosition.z&&now.z>=portalPosition.z))){
-  const f=(portalPosition.z-prev.z)/(now.z-prev.z),x=mix(prev.x,now.x,f),y=mix(prev.y,now.y,f);
-  if(Math.hypot(x-portalPosition.x,y-portalPosition.y)<1.52)crossPortal();
+ if(state.portalArmed&&((prev.z>portalPosition.z&&now.z<=portalPosition.z)||(prev.z<portalPosition.z&&now.z>=portalPosition.z))){
+  const fraction=(portalPosition.z-prev.z)/(now.z-prev.z),crossX=mix(prev.x,now.x,fraction),crossY=mix(prev.y,now.y,fraction);
+  if(Math.hypot(crossX-portalPosition.x,crossY-portalPosition.y)<1.52)crossing=fraction;
  }
  previousPortalPosition.copy(now);
  portalMaterial.color.setHex(state.observer==='b'?0xffdb90:0xb8ffe0);
  portalVeil.material.opacity=reduced?.1:.09+Math.sin(state.personalTime*2)*.025;
- $('#journey-hint').textContent=state.crossings? '이전 기억 + 새로운 경험 · 사람을 클릭해 A와 비교하세요':'사람을 클릭해 기억 관찰 · 빛나는 포탈로 걸어가세요';
+ return crossing;
 }
 // A has one deterministic history: run, lose footing, fall backwards, lie belly-up.
 const runner=new T.Group();scene.add(runner);
@@ -48,7 +47,7 @@ const selection=mesh(new T.RingGeometry(.65,.7,48),new T.MeshBasicMaterial({colo
 function runnerPhase(){return state.t<.24?'달리기':state.t<.32?'뒤로 넘어짐':'배를 위로 향해 누움';}
 function runnerMemory(){return state.t*48;}
 function updateRunner(){
- const t=state.t,fall=smooth(.24,.32,t),stride=Math.sin(t*48*10),run=1-smooth(.23,.27,t);
+ const t=state.t,fall=smooth(.24,.32,t),stride=Math.sin(t*48*10),run=t<0?0:1-smooth(.23,.27,t);
  const offset=state.mode==='basic'?0:4,z=state.mode==='basic'?5:11;
  runner.position.set(mix(-2,3.7,smooth(0,.24,t))+offset,terrain(3.7+offset,z)+.02,z);runner.rotation.y=Math.PI/2;
  body.position.y=mix(.96,.33,fall)+Math.abs(stride)*.055*run+Math.sin(fall*Math.PI)*.23;
@@ -58,7 +57,7 @@ function updateRunner(){
 }
 const raycaster=new T.Raycaster();
 function inspect(who){state.inspected=state.mode==='runner'?(who==='self'?'reverse':who==='runner'?'forward':who):who;$('#inspect-self').setAttribute('aria-pressed',String(['self','reverse'].includes(state.inspected)));$('#inspect-runner').setAttribute('aria-pressed',String(['runner','forward'].includes(state.inspected)));updateNeurons();}
-function pickRunner(e){const rect=renderer.domElement.getBoundingClientRect();raycaster.setFromCamera(new T.Vector2((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1),camera);scene.updateMatrixWorld(true);
+function pickRunner(e){if(state.mode==='basic')return;const rect=renderer.domElement.getBoundingClientRect();raycaster.setFromCamera(new T.Vector2((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1),camera);scene.updateMatrixWorld(true);
  if(state.mode==='runner'){
   const hits=raycaster.intersectObjects(travellers.filter(p=>p.group.visible).map(p=>p.group),true);
   if(hits.length){let o=hits[0].object;while(o&&!o.userData.traveller)o=o.parent;if(o)inspect(o.userData.traveller);}return;
@@ -140,6 +139,7 @@ function selectedMemory(){
 function resetMode(){
  Object.assign(state,{t:0,observer:'a',personalTime:0,forwardMemory:0,reverseMemory:0,crossings:0,portalArmed:true,playing:!reduced,cinema:!reduced,storyTime:0,inspected:state.mode==='runner'?'reverse':'self'});
  cinemaTime=0;camera.position.copy(cameraPath.getPointAt(0));camera.lookAt(2,1.1,5);state.lookYaw=camera.rotation.y;state.lookPitch=camera.rotation.x;previousPortalPosition.copy(camera.position);
+ if(state.mode==='basic')resetFreeJourney();
 }
 function setMode(mode){
  if(mode===state.mode)return;
@@ -150,7 +150,7 @@ function setMode(mode){
  for(const m of ['basic','story','runner'])$('#mode-'+m).setAttribute('aria-pressed',String(m===mode));
  $('#cinema').disabled=mode!=='basic';neuralCaption.hidden=mode==='basic';
  $('#inspect-self').setAttribute('aria-label',mode==='runner'?'역행 여행자 기억 관찰':'나의 기억 관찰');$('#inspect-runner').setAttribute('aria-label',mode==='runner'?'순행 여행자 기억 관찰':'달리는 사람의 기억 관찰');
- updateButtons();updateWorld();updateTravellers();updateScriptCamera();inspect(state.inspected);
+ updateButtons();updateWorld();updateTravellers();updateScriptCamera();inspect(state.inspected);updateFirstPerson();
 }
 for(const mode of ['basic','story','runner'])$('#mode-'+mode).addEventListener('click',()=>setMode(mode));
 function advanceStory(dt){
