@@ -2,7 +2,7 @@ from pathlib import Path
 import base64
 root=Path(__file__).resolve().parents[1]
 shell=(root/'source/shell.html').read_text()
-world=(root/'source/world.js').read_text().replace('// __EXPERIENCE__',(root/'source/experience.js').read_text())
+world=(root/'source/world.js').read_text().replace('// __EXPERIENCE__',(root/'source/story.js').read_text()+'\n'+(root/'source/experience.js').read_text())
 engine=(root/'assets/three.min.js').read_text()
 # The pinned UMD release starts with a deprecation notice; keep its license intact.
 engine='void '+engine[engine.index('/**'):]

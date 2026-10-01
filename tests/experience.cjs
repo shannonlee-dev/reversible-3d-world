@@ -5,7 +5,7 @@ const path=require('node:path');
 (async()=>{
  const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||undefined,headless:true,args:['--no-sandbox','--use-angle=swiftshader','--enable-webgl','--ignore-gpu-blocklist','--enable-unsafe-swiftshader']});
  try {
- const page=await browser.newPage({viewport:{width:1100,height:760},deviceScaleFactor:1});
+ const page=await browser.newPage({viewport:{width:1100,height:760},deviceScaleFactor:Number(process.env.TEST_DPR||1)});
  const errors=[],requests=[];page.on('pageerror',e=>{errors.push(e.message);console.error('PAGE ERROR',e.message)});page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});page.on('request',r=>{if(/^https?:/.test(r.url()))requests.push(r.url())});
  await page.goto('file://'+path.resolve(__dirname,'../index.html'));console.log('loaded');
  await page.waitForFunction(()=>window.__forest?.ready&&!document.querySelector('#enter').disabled,null,{timeout:20000}).catch(async e=>{console.error(await page.evaluate(()=>({ready:window.__forest?.ready,enter:document.querySelector('#enter').disabled,error:document.querySelector('#error').className})));throw e;});

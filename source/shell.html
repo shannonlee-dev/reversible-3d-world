@@ -8,6 +8,10 @@ __FONT__
 .direction{font:11px 'Forest Sans',sans-serif;min-width:74px}.direction i{font-style:normal}#journey-hint{font-size:11px;text-align:center;line-height:1.6;text-shadow:0 2px 8px #000}#time-caption{font:10px 'Forest Sans',sans-serif;color:#cbd8cd}.bottom{gap:9px}progress{appearance:none;width:100%;height:3px;border:none;background:#fff1cd33;color:var(--gold)}progress::-webkit-progress-bar{background:#fff1cd33}progress::-webkit-progress-value{background:var(--gold)}progress::-moz-progress-bar{background:var(--gold)}.reversing progress::-webkit-progress-value{background:var(--mint)}.instructions{bottom:132px}
 @media(max-width:650px){.neural-panel{left:14px;top:74px;width:min(272px,calc(100vw - 28px));padding:8px}.neural-tabs{gap:12px}.neural-tabs button{width:48px;height:42px}.neural-tabs button svg{width:30px;height:30px}#journey-hint{font-size:9px}.instructions{bottom:134px}#joystick{bottom:162px}}
 @media(max-height:580px){.neural-panel{top:70px;width:242px;padding:8px}.neural-tabs button{height:36px;width:44px}.neural-tabs button svg{width:27px;height:27px}.instructions{display:none}}
+.modes{right:28px;top:84px;display:flex;gap:5px;pointer-events:auto;background:#10251eee;padding:6px;border-radius:12px}.modes button{padding:10px;background:transparent;border-radius:8px;font-size:12px}.modes button[aria-pressed=true]{background:#ffe5a82b;color:var(--gold)}#neural-caption{font-size:11px;line-height:1.6;text-align:center;color:var(--mint);margin:0 4px 5px}body[data-mode=runner] #joystick,body[data-mode=story] #joystick{display:none}.modes button:disabled{opacity:.4}
+body[data-mode=runner] .instructions,body[data-mode=story] .instructions{display:none}body[data-mode=runner] #inspect-self[aria-pressed=true]{border-color:var(--mint);color:var(--mint)}body[data-mode=runner] .neural-panel{width:240px}
+@media(max-width:650px){.modes{top:70px;left:14px;right:14px;justify-content:center}.modes button{font-size:11px;padding:9px}.neural-panel{top:122px;width:210px}body[data-mode=runner] .neural-panel{width:180px}#neural-caption{font-size:10px}}
+@media(max-height:580px){.neural-panel{width:190px}.modes{left:auto;right:14px}.neural-panel{top:72px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style></head><body>
 <div id="world" aria-label="시간이 되감기는 3D 숲. WASD로 이동하고 드래그로 둘러보세요."></div><div id="vignette"></div><div class="edge"></div><div id="flash"></div>
@@ -21,5 +25,6 @@ __FONT__
 <div id="joystick" role="group" aria-label="이동 조이스틱"><div id="stick"></div></div>
 <div class="instructions" id="instructions"><span class="desktop-help"><kbd>W A S D</kbd> 걷기　 드래그 둘러보기　 <kbd>P</kbd> 일시 정지　 포탈 통과로 시간 반전</span><span class="touch-help">왼쪽으로 걷기 · 오른쪽으로 둘러보기 · 사람 터치로 기억 관찰</span></div>
 <div class="toast" id="toast" role="status"></div><div id="error"><div>이 숲에는 WebGL이 필요합니다.<br><small>하드웨어 가속을 켠 Chrome 또는 Edge에서 열어주세요.</small></div></div><p class="sr-only">가상의 시간 방향을 체험하는 예술적 사고실험입니다. 포탈 통과 후에도 여행자의 이전 기억은 유지되고 새 기억이 쌓입니다. 순방향 사람 A의 기억은 역행 관찰 시 줄어드는 순서로 보입니다. 물리 법칙의 시뮬레이션은 아닙니다.</p>
+<nav class="hud modes" aria-label="체험 모드"><button id="mode-basic" aria-pressed="true">기본 모드</button><button id="mode-story" aria-pressed="false">각본 여행자 시점</button><button id="mode-runner" aria-pressed="false">A 시점</button></nav>
 <script>__THREE__</script><script>__WORLD__</script>
 </body></html>

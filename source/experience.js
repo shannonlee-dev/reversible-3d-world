@@ -10,6 +10,7 @@ function sceneLabel(text){const canvas=document.createElement('canvas');canvas.w
 const portalLabel=sceneLabel('포탈 · 통과하면 시간 반전');portalLabel.position.set(0,2.1,0);portal.add(portalLabel);
 const previousPortalPosition=v3();
 function checkPortal(){
+ if(state.mode!=='basic')return;
  if(!state.entered){previousPortalPosition.copy(camera.position);return;}
  const now=camera.position,prev=previousPortalPosition;
  if(!state.portalArmed&&Math.abs(now.z-portalPosition.z)>1.2)state.portalArmed=true;
@@ -43,22 +44,26 @@ for(const side of [-1,1]){
  mesh(box,runnerSkin,v3(0,-.39,.08),v3(.12,.24,.13),arm);
  limbs.push({side,leg,knee,arm});
 }
-const runnerLabel=sceneLabel('A · 클릭하여 기억 관찰');scene.add(runnerLabel);
 const selection=mesh(new T.RingGeometry(.65,.7,48),new T.MeshBasicMaterial({color:0xffdb90,side:T.DoubleSide,transparent:true,opacity:.8}),null,null,scene,false);selection.rotation.x=-Math.PI/2;
 function runnerPhase(){return state.t<.24?'달리기':state.t<.32?'뒤로 넘어짐':'배를 위로 향해 누움';}
 function runnerMemory(){return state.t*48;}
 function updateRunner(){
  const t=state.t,fall=smooth(.24,.32,t),stride=Math.sin(t*48*10),run=1-smooth(.23,.27,t);
- runner.position.set(mix(-2,3.7,smooth(0,.24,t)),terrain(3.7,5)+.02,5);runner.rotation.y=Math.PI/2;
+ const offset=state.mode==='basic'?0:4,z=state.mode==='basic'?5:11;
+ runner.position.set(mix(-2,3.7,smooth(0,.24,t))+offset,terrain(3.7+offset,z)+.02,z);runner.rotation.y=Math.PI/2;
  body.position.y=mix(.96,.33,fall)+Math.abs(stride)*.055*run+Math.sin(fall*Math.PI)*.23;
  body.rotation.x=mix(.12,-Math.PI/2,fall);
  for(const l of limbs){l.leg.rotation.x=l.side*stride*.85*run+Math.sin(fall*Math.PI)*.6;l.knee.rotation.x=Math.max(0,-l.side*stride)*1.05*run+Math.sin(fall*Math.PI)*1.15;l.arm.rotation.x=-l.side*stride*.9*run-Math.sin(fall*Math.PI)*2;l.arm.rotation.z=l.side*fall*.7;}
- runnerLabel.position.copy(runner.position).add(v3(0,fall>.8?1.1:2.2,0));runnerLabel.scale.set(2.1,.39,1);
  selection.position.copy(runner.position);selection.position.y+=.04;selection.visible=state.inspected==='runner';
 }
 const raycaster=new T.Raycaster();
-function inspect(who){state.inspected=who;$('#inspect-self').setAttribute('aria-pressed',String(who==='self'));$('#inspect-runner').setAttribute('aria-pressed',String(who==='runner'));updateNeurons();}
-function pickRunner(e){const rect=renderer.domElement.getBoundingClientRect();raycaster.setFromCamera(new T.Vector2((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1),camera);scene.updateMatrixWorld(true);if(raycaster.intersectObjects([runner,runnerLabel],true).length)inspect('runner');}
+function inspect(who){state.inspected=state.mode==='runner'?(who==='self'?'reverse':who==='runner'?'forward':who):who;$('#inspect-self').setAttribute('aria-pressed',String(['self','reverse'].includes(state.inspected)));$('#inspect-runner').setAttribute('aria-pressed',String(['runner','forward'].includes(state.inspected)));updateNeurons();}
+function pickRunner(e){const rect=renderer.domElement.getBoundingClientRect();raycaster.setFromCamera(new T.Vector2((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1),camera);scene.updateMatrixWorld(true);
+ if(state.mode==='runner'){
+  const hits=raycaster.intersectObjects(travellers.filter(p=>p.group.visible).map(p=>p.group),true);
+  if(hits.length){let o=hits[0].object;while(o&&!o.userData.traveller)o=o.parent;if(o)inspect(o.userData.traveller);}return;
+ }
+ if(raycaster.intersectObject(runner,true).length)inspect('runner');}
 function runnerScreen(){const point=runner.position.clone().add(v3(0,.65,0)).project(camera);return {x:(point.x+1)*innerWidth/2,y:(1-point.y)*innerHeight/2,visible:point.z>-1&&point.z<1&&Math.abs(point.x)<1&&Math.abs(point.y)<1};}
 $('#inspect-self').addEventListener('click',()=>inspect('self'));$('#inspect-runner').addEventListener('click',()=>inspect('runner'));
 const neuralCanvas=$('#neurons'),neural=neuralCanvas.getContext('2d');
@@ -72,9 +77,10 @@ function neuralBranchStrength(edge,self,forward,reverse){
  return smooth(order*(self?8:4),order*(self?8:4)+(self?7:3.5),seconds);
 }
 function updateNeurons(){
- const self=state.inspected==='self',forward=self?state.forwardMemory:runnerMemory(),reverse=self?state.reverseMemory:0;
- const phase=self?state.personalTime:runnerMemory();
+ const selected=selectedMemory(),self=selected.traveller,forward=selected.forward,reverse=selected.reverse;
+ const phase=forward+reverse;
  neural.clearRect(0,0,720,560);neural.lineCap='round';neural.lineJoin='round';
+ if(!selected.present){neuralCanvas.setAttribute('aria-label','이 시간좌표에는 여행자가 없습니다');return;}
  const circle=(x,y,r)=>{neural.beginPath();neural.arc(x,y,r,0,TAU);};
  // A quiet outline keeps the sparse network legible as one brain-like image.
  neural.strokeStyle='#bdffe110';neural.lineWidth=3;
@@ -110,5 +116,82 @@ function updateNeurons(){
  neural.fillStyle='#183d30';neural.strokeStyle=self?'#fff2d5':'#dd794d';neural.lineWidth=6;circle(360,280,43);neural.fill();neural.stroke();
  const angle=phase*.8-Math.PI/2;neural.strokeStyle='#fff2d5';neural.lineWidth=6;neural.beginPath();neural.moveTo(360,280);neural.lineTo(360+Math.cos(angle)*27,280+Math.sin(angle)*27);neural.stroke();
  neural.fillStyle='#fff2d5';circle(360,280,6);neural.fill();
- neuralCanvas.setAttribute('aria-label',self?`나의 기억: 순방향 ${forward.toFixed(1)}초, 역방향 ${reverse.toFixed(1)}초. 이전 기억은 유지됩니다.`:`달리는 사람의 기억: ${forward.toFixed(1)}초. ${state.observer==='b'?'과거를 향해 줄어드는 순서로 관찰 중입니다.':'경험이 쌓이고 있습니다.'}`);
+ neuralCanvas.setAttribute('aria-label',self?`${selected.name} 기억: 순방향 ${forward.toFixed(1)}초, 역방향 ${reverse.toFixed(1)}초. 포탈 이전 기억은 유지됩니다.`:`달리는 사람의 기억: ${forward.toFixed(1)}초. ${state.observer==='b'?'과거를 향해 줄어드는 순서로 관찰 중입니다.':'경험이 쌓이고 있습니다.'}`);
 }
+
+// The two visible travellers are the two branches of the SAME worldline.
+const travellers=['forward','reverse'].map((kind)=>{
+ const group=runner.clone(true);group.userData.traveller=kind;
+ group.traverse(o=>{if(o.isMesh&&o.material===shirt){o.material=shirt.clone();o.material.color.setHex(kind==='forward'?0xffcc70:0xa5ffe3);}});
+ const label=sceneLabel(kind==='forward'?'순행 여행자 · 포탈 이전':'역행 여행자 · 포탈 이후');label.position.y=2.3;label.scale.set(1.6,.3,1);group.add(label);scene.add(group);group.visible=false;
+ const torso=group.children[0],joints=torso.children.filter(o=>o.type==='Group');
+ return {kind,group,torso,joints,label};
+});
+const neuralCaption=document.createElement('p');neuralCaption.id='neural-caption';neuralCaption.hidden=true;neuralCanvas.after(neuralCaption);
+const modeSaves={};
+const journeyKeys=['t','observer','playing','cinema','personalTime','forwardMemory','reverseMemory','inspected','crossings','portalArmed','lookYaw','lookPitch','storyTime'];
+function selectedMemory(){
+ if(state.mode==='runner'){
+  const p=Story.atWorld(state.t*48,state.inspected==='reverse');
+  return {present:!!p,traveller:true,forward:p?.forward||0,reverse:p?.backward||0,name:state.inspected==='reverse'?'역행 여행자':'순행 여행자'};
+ }
+ const self=state.inspected==='self';return {present:true,traveller:self,forward:self?state.forwardMemory:runnerMemory(),reverse:self?state.reverseMemory:0,name:self?'여행자':'A'};
+}
+function resetMode(){
+ Object.assign(state,{t:0,observer:'a',personalTime:0,forwardMemory:0,reverseMemory:0,crossings:0,portalArmed:true,playing:!reduced,cinema:!reduced,storyTime:0,inspected:state.mode==='runner'?'reverse':'self'});
+ cinemaTime=0;camera.position.copy(cameraPath.getPointAt(0));camera.lookAt(2,1.1,5);state.lookYaw=camera.rotation.y;state.lookPitch=camera.rotation.x;previousPortalPosition.copy(camera.position);
+}
+function setMode(mode){
+ if(mode===state.mode)return;
+ modeSaves[state.mode]={state:Object.fromEntries(journeyKeys.map(k=>[k,state[k]])),position:camera.position.clone(),rotation:camera.quaternion.clone(),cinemaTime};
+ clearInputs();state.mode=mode;
+ const saved=modeSaves[mode];if(saved){Object.assign(state,saved.state);camera.position.copy(saved.position);camera.quaternion.copy(saved.rotation);cinemaTime=saved.cinemaTime;}else resetMode();
+ previousPortalPosition.copy(camera.position);document.body.dataset.mode=mode;
+ for(const m of ['basic','story','runner'])$('#mode-'+m).setAttribute('aria-pressed',String(m===mode));
+ $('#cinema').disabled=mode!=='basic';neuralCaption.hidden=mode==='basic';
+ $('#inspect-self').setAttribute('aria-label',mode==='runner'?'역행 여행자 기억 관찰':'나의 기억 관찰');$('#inspect-runner').setAttribute('aria-label',mode==='runner'?'순행 여행자 기억 관찰':'달리는 사람의 기억 관찰');
+ updateButtons();updateWorld();updateTravellers();updateScriptCamera();inspect(state.inspected);
+}
+for(const mode of ['basic','story','runner'])$('#mode-'+mode).addEventListener('click',()=>setMode(mode));
+function advanceStory(dt){
+ state.storyTime=Math.min(48,state.storyTime+dt);
+ if(state.mode==='story'){
+  const p=Story.sample(state.storyTime);state.t=p.worldTime/48;state.observer=p.reverse?'b':'a';state.personalTime=p.seconds;state.forwardMemory=p.forward;state.reverseMemory=p.backward;
+  if(state.crossings===0&&p.reverse){$('#flash').classList.add('on');setTimeout(()=>$('#flash').classList.remove('on'),180);}
+  state.crossings=p.reverse?1:0;
+ }else{state.t=state.storyTime/48;state.personalTime=state.storyTime;state.forwardMemory=state.storyTime;}
+ if(state.storyTime===48)state.playing=false;
+ updateButtons();
+}
+function updateTravellers(){
+ runner.visible=state.mode!=='runner';selection.visible=state.mode!=='runner'&&state.inspected==='runner';
+ for(const actor of travellers){
+  const p=Story.atWorld(state.t*48,actor.kind==='reverse');
+  actor.group.visible=state.mode!=='basic'&&!!p&&(state.mode==='runner'||(actor.kind==='reverse')!==(state.observer==='b'));
+  if(!p)continue;
+  actor.group.position.set(p.x,terrain(p.x,p.z),p.z);actor.group.rotation.set(0,p.yaw,0);
+  actor.torso.position.y=.96+p.lift-p.sit*.48;actor.torso.rotation.set(-p.flip*TAU,0,0);
+  const walk=p.reverse?(p.seconds<27?1:0):1,stride=Math.sin(p.seconds*8)*.55*walk;
+  actor.joints.forEach((joint,i)=>{const side=i<2?-1:1,isLeg=i%2===0;joint.rotation.set(isLeg?side*stride-p.sit*1.25:-side*stride-Math.sin(p.flip*Math.PI)*2,0,0);if(isLeg)joint.children.find(o=>o.type==='Group').rotation.x=p.sit*1.5;});
+  actor.label.position.y=2.3+p.lift;
+ }
+ if(state.mode==='basic')return;
+ const memory=selectedMemory();
+ neuralCaption.textContent=!memory.present?'이 시간좌표에는 여행자가 없습니다':`${memory.name} · 순행 ${memory.forward.toFixed(1)}초 + 역행 ${memory.reverse.toFixed(1)}초`;
+ $('#journey-hint').textContent=state.mode==='story'?Story.sample(state.storyTime).phase:state.t*48>24?'포탈 사건 이후 · A의 시간은 계속 흐릅니다': '금색·민트색은 같은 여행자의 포탈 전후 모습 · 클릭해 기억 비교';
+ $('#time-caption').textContent=`A의 시간좌표 · ${(state.t*48).toFixed(1)}초${state.mode==='story'?` / 여행자 경험 · ${state.storyTime.toFixed(1)}초`:''}`;
+}
+function updateScriptCamera(){
+ if(state.mode==='basic'||!state.entered)return false;
+ hands.visible=state.mode==='story';
+ if(state.mode==='story'){
+  const actor=travellers[state.observer==='b'?1:0];actor.group.updateMatrixWorld(true);
+  camera.position.copy(actor.torso.localToWorld(v3(0,.86,.19)));
+  actor.torso.getWorldQuaternion(camera.quaternion);camera.rotateY(Math.PI);
+ }else{
+  runner.updateMatrixWorld(true);camera.position.copy(body.localToWorld(v3(0,.86,.14)));
+  const fall=smooth(.24,.32,state.t),target=v3(mix(14,3.8,fall),mix(camera.position.y,1.3,fall),mix(11,-1,fall));camera.lookAt(target);
+ }
+ return true;
+}
+function travellerScreen(actor){const p=actor.group.position.clone().add(v3(0,1,0)).project(camera);return {kind:actor.kind,x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2,visible:actor.group.visible&&p.z>-1&&p.z<1&&Math.abs(p.x)<1&&Math.abs(p.y)<1};}
